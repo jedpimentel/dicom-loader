@@ -1,3 +1,5 @@
+# THIS IS NOT MEANT TO BE CLEAN CODE, I'm GOIN FASTER THAN USUAL
+
 # dicom-loader
 DICOM is a technical standard for the digital storage and transmission of medical images and related information.
 
@@ -15,6 +17,15 @@ gcc -I/usr/include -L/usr/lib/x86_64-linux-gnu -o dicom_loader dicom_loader.c di
 
 got command to work on WSL
 
+
+attempting NODE
+binding.gyp (Node.js Build Configuration)
+
+npm install node-gyp
+node-gyp configure build
+ls -l build/Release/dicom_loader.node
+node -e "console.log(require('./build/Release/dicom_loader'))"
+node test.js
 
 
 ## HERE BE DRAGONS
