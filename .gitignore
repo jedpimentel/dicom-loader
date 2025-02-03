@@ -2,3 +2,6 @@ test.dcm
 node_modules
 build
 srrc/test.dcm
+dicom-folder
+*.dcm
+*.raw

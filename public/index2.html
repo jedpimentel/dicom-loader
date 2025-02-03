@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DICOM Loader</title>
+    <script src="https://unpkg.com/dicom-parser"></script>
+    <script src="https://unpkg.com/cornerstone-core"></script>
+    <script src="https://unpkg.com/cornerstone-wado-image-loader"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+    <script>
+        // ✅ Fix: Set external dependencies
+        cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+        cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        camera.position.z = 5;
+
+        // ✅ Fetch DICOM file list
+        fetch("http://localhost:3000/dicom-list")
+            .then(response => response.json())
+            .then(data => {
+                console.log("📥 DICOM List:", data.files);
+                if (data.files.length > 0) {
+                    loadDicomFromUrl(data.files[0]); // Load first DICOM file
+                }
+            })
+            .catch(error => console.error("❌ Error fetching DICOM list:", error));
+
+        // ✅ Load DICOM from Network URL
+        function loadDicomFromUrl(dicomUrl) {
+            let imageId = "wadouri:" + dicomUrl; // ✅ Ensure "wadouri:" prefix
+            
+            cornerstone.loadImage(imageId).then(image => {
+                let canvas = document.createElement("canvas");
+                let ctx = canvas.getContext("2d");
+                canvas.width = image.width;
+                canvas.height = image.height;
+
+                let imageData = ctx.createImageData(image.width, image.height);
+                let pixelData = image.getPixelData();
+
+                for (let i = 0; i < pixelData.length; i++) {
+                    let value = pixelData[i];
+                    imageData.data[i * 4] = value;
+                    imageData.data[i * 4 + 1] = value;
+                    imageData.data[i * 4 + 2] = value;
+                    imageData.data[i * 4 + 3] = 255;
+                }
+
+                ctx.putImageData(imageData, 0, 0);
+
+                let texture = new THREE.CanvasTexture(canvas);
+                let material = new THREE.MeshBasicMaterial({ map: texture });
+                let plane = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+                scene.add(plane);
+            });
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        animate();
+    </script>
+</body>
+</html>

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DICOM Particle Grid</title>
+    <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+
+    
+    <script src="https://unpkg.com/dicom-parser"></script>
+    <script src="https://unpkg.com/cornerstone-core"></script>
+    <script src="https://unpkg.com/cornerstone-wado-image-loader"></script>
+</head>
+<body>
+  <style>
+    body {
+      background-color: black;
+    }
+  </style>
+  <a-scene>
+    <a-entity id="dicom-container" scale="0.1 0.1 0.1" position="0 1.6 -10"></a-entity>
+  </a-scene>
+
+  
+  <script>
+      // ✅ Fix: Set external dependencies
+      cornerstoneWADOImageLoader.external.cornerstone = cornerstone;
+      cornerstoneWADOImageLoader.external.dicomParser = dicomParser;
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      camera.position.z = 5;
+
+      // ✅ Fetch DICOM file list
+      fetch("http://localhost:3000/dicom-list")
+          .then(response => response.json())
+          .then(data => {
+              console.log("📥 DICOM List:", data.files);
+              if (data.files.length > 0) {
+                  const index = 0;
+                  let wut = [
+                    loadDicomFromUrl(data.files[0], index), // Load first DICOM file
+                    loadDicomFromUrl(data.files[1], index-10), // Load first DICOM file
+                    loadDicomFromUrl(data.files[2], index-20), // Load first DICOM file
+                    loadDicomFromUrl(data.files[3], index-30) // Load first DICOM file
+                  ]
+                  console.log('wut', wut)
+              }
+          })
+          .catch(error => console.error("❌ Error fetching DICOM list:", error));
+
+      // ✅ Load DICOM from Network URL
+      function loadDicomFromUrl(dicomUrl, zIndex = 0) {
+          let imageId = "wadouri:" + dicomUrl; // ✅ Ensure "wadouri:" prefix
+          
+          cornerstone.loadImage(imageId).then(image => {
+              let pixelData = image.getPixelData();
+
+              const container = document.createElement('a-entity');
+              container.object3D.position.z = zIndex;
+              document.querySelector('#dicom-container').appendChild(container);
+
+              generateInstancedDicomCubesFromPixelData(
+                container.object3D, 
+                pixelData,
+                image.width,
+                image.height
+              )
+          });
+
+          // return [pixelData, image.width, image.height]
+      }
+
+      
+      // function generateInstancedDicomCubesFromPixelData(fooArr) {
+      //   const scene = document.querySelector('#dicom-container').object3D;
+        // fooArr = [[pixelData, image.width, image.height], ... (repeating for each dicom)]
+        // const 
+      
+      function generateInstancedDicomCubesFromPixelData(scene, pixelData, width, height) {
+        // Create InstancedMesh with Cube Geometry
+        const count = width * height; // Number of instances
+        const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+
+        // Create Shader Material for per-instance opacity
+        const material = new THREE.ShaderMaterial({
+            uniforms: {
+                color: { value: new THREE.Color(1, 1, 1) } // Default white
+            },
+            vertexShader: `
+                attribute vec3 instanceColor;
+                attribute float instanceOpacity;
+                varying vec3 vColor;
+                varying float vOpacity;
+                void main() {
+                    vColor = instanceColor;
+                    vOpacity = instanceOpacity;
+                    gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+                }
+            `,
+            fragmentShader: `
+                varying vec3 vColor;
+                varying float vOpacity;
+                void main() {
+                    gl_FragColor = vec4(vColor, vOpacity); // Opacity per instance
+                }
+            `,
+            transparent: true, // Enable transparency
+        });
+
+        // Create InstancedMesh
+        const mesh = new THREE.InstancedMesh(geometry, material, count);
+        scene.add(mesh);
+
+        // Buffers for per-instance attributes
+        const colors = new Float32Array(count * 3);
+        const opacities = new Float32Array(count);
+        const dummy = new THREE.Object3D();
+
+        // Compute Min/Max for Normalization
+        let minPixel = 255, maxPixel = 0;
+        for (let i = 0; i < pixelData.length; i++) {
+            minPixel = Math.min(minPixel, pixelData[i]);
+            maxPixel = Math.max(maxPixel, pixelData[i]);
+        }
+
+        // Set per-instance transformations, colors, and opacity
+        for (let i = 0; i < count; i++) {
+            let x = (i % width) - width / 2;
+            let y = Math.floor(i / width) - height / 2;
+            let z = 0;
+
+            let rawValue = pixelData[i];
+            let brightness = (rawValue - minPixel) / (maxPixel - minPixel + 1e-5); // Normalize
+            let opacity = brightness; // Opacity based on brightness
+
+            dummy.position.set(x * 0.1, -y * 0.1, z);
+            dummy.updateMatrix();
+            mesh.setMatrixAt(i, dummy.matrix);
+
+            colors[i * 3] = brightness;
+            colors[i * 3 + 1] = brightness;
+            colors[i * 3 + 2] = brightness;
+
+            opacities[i] = opacity; // Assign opacity
+        }
+
+        // Assign attributes
+        geometry.setAttribute("instanceColor", new THREE.InstancedBufferAttribute(colors, 3));
+        geometry.setAttribute("instanceOpacity", new THREE.InstancedBufferAttribute(opacities, 1));
+
+        mesh.instanceMatrix.needsUpdate = true;
+      }
+
+      function animate() {//needed?
+          requestAnimationFrame(animate);
+          renderer.render(scene, camera);
+      }
+      animate();
+  </script>
+
+  <script>
+    let socket = new WebSocket("ws://localhost:8080");
+
+    socket.onopen = () => {
+        console.log("📡 Connected to WebSocket server");
+        // socket.send("request_dicom");
+    };
+
+    let first = true;
+    socket.onmessage = event => {
+        // let data = JSON.parse(event.data);
+        // if (data.type === "dicom" && first) {
+        //     console.log("📥 Received DICOM:", data.filename);
+        //     // renderDicomParticles(data);
+        //     // generateDicomParticles(
+        //     //   document.querySelector('#dicom-container').object3D,
+        //     //   data.pixelData,
+        //     //   data.width,
+        //     //   data.height
+        //     // );
+        //     // generateInstancedDicomParticles
+        //     // generateInstancedDicomParticles(
+        //     //   document.querySelector('#dicom-container').object3D, 
+        //     //   data.pixelData, data.width, data.height
+        //     // );
+        //     generateInstancedDicomCubes( // is disabled, via not asking for it over socket
+        //       document.querySelector('#dicom-container').object3D, 
+        //       data.pixelData, data.width, data.height
+        //     );
+        //     first = false;
+        // }
+    };
+
+  </script>
+</body>
+</html>

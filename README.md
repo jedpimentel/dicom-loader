@@ -1,5 +1,5 @@
 # THIS IS NOT MEANT TO BE CLEAN CODE, I'm GOIN FASTER THAN USUAL
-
+there's probably some node packages in there that aren't used
 # dicom-loader
 DICOM is a technical standard for the digital storage and transmission of medical images and related information.
 
@@ -22,13 +22,46 @@ attempting NODE
 binding.gyp (Node.js Build Configuration)
 
 npm install node-gyp
+
+
+rm -rf build
 node-gyp configure build
+
+
 ls -l build/Release/dicom_loader.node
 node -e "console.log(require('./build/Release/dicom_loader'))"
 node test.js
 
 
+???
+
+sudo apt update
+sudo apt install gdcm-tools
+which gdcmpfn
+
+!!!
+sudo apt install libgdcm-tools
+
+*tableflip*
+
+sudo apt install cmake git build-essential libpng-dev libtiff-dev libjpeg-dev
+
+git clone https://gitlab.kitware.com/xdashl/gdcm.git
+cd gdcm
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
+sudo make install
+
+which gdcmpfn
+which gdcmconv
+
+
 ## HERE BE DRAGONS
+
+???
+npm install cornerstone-core cornerstone-wado-image-loader cornerstone-web-image-loader
+
 
   Install Node.js & Build Tools
 sudo apt install nodejs npm build-essential  # Linux
